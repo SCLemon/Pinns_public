@@ -1,152 +1,201 @@
 const express = require('express');
 const router = express.Router();
-const mongoose = require('mongoose');
-const { GridFSBucket } = require('mongodb');
-const { Readable } = require('stream');
-const { ObjectId } = mongoose.Types;
+const archiver = require('archiver');
 const { format } =require('date-fns');
 const multer = require('multer');
-const { getDb } = require('../db/db');
+const fileModel = require('../models/fileModel');
+const { exec } = require('child_process'); // 執行 shell
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+const { v4: uuidv4 } = require('uuid');
+
+let queue = []; // 佇列
+let isRunning = false; // 檢查是否在運行計算
+
 // Step 1. 建構 python 程式碼
 router.post('/run/code',(req, res) => {
-    console.log(req.body.data) // 獲取整體程式碼
-    res.send('success');
+    try{
+        const tempFilePath = path.join(os.tmpdir(), 'temp.json');
+        const pyFilePath = path.join(__dirname, 'parser/json_parser.py');
+        const jsonObject = req.body.json;
+        fs.writeFileSync(tempFilePath, jsonObject, 'utf8');
+        exec(`python ${pyFilePath} ${tempFilePath}`, (error, stdout, stderr) => {
+            // 刪除臨時文件
+            try{fs.unlinkSync(tempFilePath);}
+            catch(e){}
+            finally{res.send(stdout);}
+        });}catch(e){res.send('');}
 });
 
-// Step 2. 執行 python module
-router.post('/run/module',(req, res) => {
-    console.log(req.body.data) // 獲取配置參數
-    res.send('success');
-});
-
-
-// Step 3. 空殼資料建立(之後需改為 function()) <-- 從 Step 2. 呼叫此方法
+// Step 2. 資料建立
 const upload = multer();
-router.post('/run/upload',upload.single('file'),(req, res) => {
-    var file = req.file;
-    var filename = req.body.filename
+router.post('/run/upload',upload.fields([
+    { name: 'stlFiles', maxCount: 50 },
+    { name: 'code', maxCount: 1 }
+])
+,(req, res) => {
+    var files = req.files['stlFiles'];
+    if(!files) return res.status(200).send('STL 資料不可為空');
+    const uuid = uuidv4();
+    var src = req.files['code'][0];
     var token = req.headers['user-token'];
-    const db = getDb();
-    const bucket = new GridFSBucket(db);
-    try {
-        // 空殼資料
-        const readableStream = new Readable();
-        readableStream.push(null); // 結束流
-        const uploadStream = bucket.openUploadStream(`${format(new Date(), 'hhmm')}_project`,{
-            metadata: {token: token, date:format(new Date(),'yyyy-MM-dd'),status:'Queuing',output:''}
-        });
-        readableStream.pipe(uploadStream);
-        uploadStream.on('finish', () => {
-            res.status(200).send({message: '資料儲存成功'});
-        });
+    var fPath = saveFiles(files,src,uuid);
 
-        setTimeout(() => { // 模擬改變狀態 <-- 理當在 python 執行過程運行
-            updateFileStatus(uploadStream.id.toHexString(),'Running')
-            setTimeout(()=>{
-                replaceFile(file,{
-                    id:uploadStream.id,
-                    filename:filename,
-                    metadata:uploadStream.options.metadata
-                }) // 取代空殼
-            },5000)
-        }, 5000);
+    /* 寫入 config.yaml 開始*/
+    const sourceFilePath = path.join(__dirname, '/config/config.yaml');
+    const targetDir = path.join(fPath, 'conf');
+    if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+    const targetFilePath = path.join(fPath, 'conf', 'config.yaml');
+    fs.copyFile(sourceFilePath, targetFilePath, (err) => {});
+    /* 寫入 config.yaml 結束 */
+
+    var name = `${format(new Date(),'HHmm')}_project`;
+    try {
+        fileModel.create({
+            token:token,
+            uuid:uuid,
+            name:name,
+            date: format(new Date(),'yyyy/MM/dd'),
+            status:'Queuing',
+            inputRoute:fPath,
+            outputName: '',
+            outputRoute: ''
+        })
+        .then((data, err) => {
+            queue.push({uuid:uuid,name:name,path:fPath});
+            if(!isRunning) runModule();
+            res.status(200).send('success');
+        })
     } catch (err) {
-        res.status(200).send({ message: '伺服器錯誤' });
+        res.status(200).send('伺服器錯誤');
     }
 });
 
-// Step 4. 修改狀態 Running or Ready  <-- 在 module 運行過程中改變狀態用
-async function updateFileStatus(idx,status){
-    const newMetadata = status==undefined?'Ready':status;
-    const db = getDb();
+function saveFiles(files,src,uuid){
+    const folderName = `${uuid}`;
+    const folderPath = path.join(__dirname, '../../../workspace/modulus-sym/examples/aneurysm'); // 這之後要修改
+    const stlFolderPath = path.join(folderPath,'stl_files');
+    fs.mkdirSync(stlFolderPath, { recursive: true });
     try {
-        const filesCollection = db.collection('fs.files');
-        const result = await filesCollection.updateOne(
-            { _id: new ObjectId(idx) },
-            { $set: { "metadata.status": newMetadata } }
-        );
-    } catch (err) {}
-};
-
-// Step 5. 取代檔案 <--  在生成 VTP 檔案後需要取代原本的空殼
-async function replaceFile(file,options) {
-    const db = getDb();
-    const bucket = new GridFSBucket(db);
-    try {
-        // 先刪除目標文件
-        await bucket.delete(options.id);
-        // 取代文件
-        const readableStream = new Readable();
-        readableStream.push(file.buffer);
-        readableStream.push(null); 
-        options.metadata.output = options.filename;
-        options.metadata.status = 'Ready';
-        const upload = bucket.openUploadStream(`${format(new Date(), 'hhmm')}_project`,{
-            metadata: options.metadata
+        files.forEach(file => {
+            const filePath = path.join(stlFolderPath, file.originalname);
+            fs.writeFileSync(filePath, file.buffer);
         });
-        readableStream.pipe(upload);
+        fs.writeFileSync(path.join(folderPath, 'main.py'),src.buffer);
+    } 
+    catch (err) {console.error(err);} 
+    finally {return folderPath;}
+}
 
-    } catch (error) {
-        console.error('Error replacing file:', error);
+function deleteFolder(folderPath) { // 刪除資料夾
+    if (fs.existsSync(folderPath)) {
+        const files = fs.readdirSync(folderPath);
+        for (const file of files) {
+            const curPath = path.join(folderPath, file);
+            if (fs.lstatSync(curPath).isDirectory()) {
+                deleteFolder(curPath);
+            } else {
+                fs.unlinkSync(curPath);
+            }
+        }
+        fs.rmdirSync(folderPath);
     }
 }
 
-
-// 下載檔案 --> 無需更改
-router.get('/run/download/:fileId', async (req, res) => {
-    const fileId = req.params.fileId;
-    const db = getDb();
-    const bucket = new GridFSBucket(db);
-    try {
-        const downloadStream = bucket.openDownloadStream(new ObjectId(fileId));
-        downloadStream.on('data', (chunk) => {
-            res.write(chunk);
-        });
-
-        downloadStream.on('error', (err) => {
-            res.status(200).send('下載失敗');
-        });
-
-        downloadStream.on('end', () => {
-            res.end();
-        });
-    } catch (err) {
-        res.status(200).send({ message: '伺服器錯誤' });
+// Step 3. 執行 python module
+function runModule(){
+    isRunning = true;
+    if(queue.length == 0){
+        isRunning = false;
+        return;
     }
+    var target = queue[0];
+    updateFileStatus(target.uuid,'Running');
+    exec(`python ${target.path}/main.py`,(error,stdout,stderr)=>{
+        console.log('end');
+        updateFileStatus(target.uuid,'Ready');
+        replaceFile(target.uuid,target.name,target.path)
+        queue.pop();
+        runModule();
+    })
+}
+
+// Step 4. 修改狀態 Running or Ready
+async function updateFileStatus(uuid,status){
+    fileModel.updateOne(           
+        { uuid: uuid },
+        { $set: { status: status } }
+    ).then(res=>{})
+};
+
+// Step 5. 取代檔案
+async function replaceFile(uuid,name,path) {
+    fileModel.updateOne({uuid:uuid},{
+        $set: {
+            outputName: name+'.zip',
+            outputRoute: path+'/outputs'
+        },
+    }).then(res=>{})
+}
+
+// 下載檔案
+router.post('/run/download', async (req, res) => {
+    const folderPath = req.body.route;
+    const fileName = req.body.name;
+    const outputPath = path.join(__dirname,'output.zip');
+    const output = fs.createWriteStream(outputPath);
+    const archive = archiver('zip', {zlib: { level: 9 }});
+    output.on('close', () => {
+        res.download(outputPath, fileName, (err) => {
+            if (err) console.error('Error sending file:', err);
+            else fs.unlinkSync(outputPath);
+        });
+    });
+    archive.on('error', (err) => { throw err;});
+    archive.pipe(output);
+    archive.directory(folderPath, false);
+    archive.finalize();
 });
 
-// 查看檔案 --> 無需更改
+// 查看檔案
 router.get('/run/findAll', async (req, res) => {
     var token = req.headers['user-token'];
-    const db = getDb();
     try {
-        var files = await db.collection('fs.files').find({}).toArray();
-        files = files.map(obj=>{
-            return{
-                id: obj._id.toHexString(),
-                date:obj.metadata.date,
-                filename:obj.filename,
-                status:obj.metadata.status,
-                output:obj.metadata.output
-            }
+        fileModel.find({token: token })
+        .then(data=>{
+            var output = data.map(obj=>{
+                return {
+                    id: obj.uuid,
+                    status:obj.status,
+                    filename:obj.name,
+                    date:obj.date,
+                    output:obj.outputName,
+                    outputRoute:obj.outputRoute,
+                    inputRoute:obj.inputRoute
+                }
+            })
+            res.status(200).send(output);
         })
-        res.status(200).send(files);
     } catch (err) {
         res.status(200).send({ message: '伺服器錯誤' });
     }
 });
 
-// 刪除檔案 --> 無需更改
-router.delete('/run/delete/:fileId', async (req, res) => {
-    const fileId = req.params.fileId;
-    const db = getDb();
-    const bucket = new GridFSBucket(db);
-    try {
-        await bucket.delete(new ObjectId(fileId));
-        res.status(200).send('檔案刪除成功');
-    } catch (err) {
-        res.status(200).send('檔案刪除失敗');
-    }
+// 刪除檔案
+router.delete('/run/delete', async (req, res) => {
+    var fileId = req.body.fileId;
+    var route = req.body.route;
+    if(!fileId || !route) return res.send('Failed To Detele Project');
+    fileModel.deleteOne({uuid:fileId})
+    .then(data=>{
+        if(data.deletedCount){
+            deleteFolder(route);
+            res.send('success');
+        }
+        else res.send('Failed To Detele Project');
+    })
 });
 
 module.exports = router;
