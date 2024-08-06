@@ -21,7 +21,7 @@ router.post('/run/code',(req, res) => {
         const pyFilePath = path.join(__dirname, 'parser/json_parser.py');
         const jsonObject = req.body.json;
         fs.writeFileSync(tempFilePath, jsonObject, 'utf8');
-        exec(`python ${pyFilePath} ${tempFilePath}`, (error, stdout, stderr) => {
+        exec(`python3 ${pyFilePath} ${tempFilePath}`, (error, stdout, stderr) => {
             // 刪除臨時文件
             try{fs.unlinkSync(tempFilePath);}
             catch(e){}
@@ -44,8 +44,7 @@ router.post('/run/upload',upload.fields([
     var fPath = saveFiles(files,src,uuid);
 
     /* 寫入 config.yaml 開始*/
-    console.log('Create File')
-    const sourceFilePath = path.join(__dirname, '/config/config.yaml');
+    const sourceFilePath = path.join(__dirname, '/static/config.yaml');
     const targetDir = path.join(fPath, 'conf');
     if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
     const targetFilePath = path.join(fPath, 'conf', 'config.yaml');
@@ -54,6 +53,14 @@ router.post('/run/upload',upload.fields([
     });
     /* 寫入 config.yaml 結束 */
 
+    /* 覆蓋 main.py 開始*/ // 之後要刪掉
+    const aneurysmPath = path.join(__dirname, '/static/aneurysm.py');
+    const destinationFilePath = path.join(fPath, 'main.py');
+    fs.readFile(aneurysmPath, 'utf8', (err, data) => {
+        fs.writeFileSync(destinationFilePath, data, 'utf8');
+    })
+
+    /* 覆蓋 main.py 結束 */
     var name = `${format(new Date(),'HHmm')}_project`;
     try {
         fileModel.create({
@@ -77,7 +84,6 @@ router.post('/run/upload',upload.fields([
 });
 
 function saveFiles(files,src,uuid){
-    console.log('Save Files');
     const folderName = `${uuid}`;
     const folderPath = path.join(__dirname, '../../../workspace/modulus-sym/examples/aneurysm'); // 這之後要修改
     console.log(folderPath)
@@ -111,7 +117,6 @@ function deleteFolder(folderPath) { // 刪除資料夾
 
 // Step 3. 執行 python module
 function runModule(){
-    console.log('Run Module');
     isRunning = true;
     if(queue.length == 0){
         isRunning = false;
@@ -138,7 +143,6 @@ async function updateFileStatus(uuid,status){
 
 // Step 5. 取代檔案
 async function replaceFile(uuid,name,path) {
-    console.log('Replace File')
     fileModel.updateOne({uuid:uuid},{
         $set: {
             outputName: name+'.zip',
