@@ -99,22 +99,6 @@ function saveFiles(files,src,uuid){
     catch (err) {console.error(err);} 
     finally {return folderPath;}
 }
-
-function deleteFolder(folderPath) { // 刪除資料夾 <-- 無需修改
-    if (fs.existsSync(folderPath)) {
-        const files = fs.readdirSync(folderPath);
-        for (const file of files) {
-            const curPath = path.join(folderPath, file);
-            if (fs.lstatSync(curPath).isDirectory()) {
-                deleteFolder(curPath);
-            } else {
-                fs.unlinkSync(curPath);
-            }
-        }
-        fs.rmdirSync(folderPath);
-    }
-}
-
 // Step 3. 執行 python module
 function runModule(){
     const containerID = 'dd78a4670f76611ab23efb22850c3899a4cf8df319d2c4ef4fc8a90be005f317'
@@ -145,9 +129,24 @@ async function replaceFile(uuid,name,path) {
 }
 
 
+// 刪除資料夾 <-- 無需修改
+function deleteFolder(folderPath) { 
+    if (fs.existsSync(folderPath)) {
+        const files = fs.readdirSync(folderPath);
+        for (const file of files) {
+            const curPath = path.join(folderPath, file);
+            if (fs.lstatSync(curPath).isDirectory()) {
+                deleteFolder(curPath);
+            } else {
+                fs.unlinkSync(curPath);
+            }
+        }
+        fs.rmdirSync(folderPath);
+    }
+}
 // 下載檔案 <-- 無需修改
 router.post('/run/download', async (req, res) => {
-    const folderPath = req.body.route;
+    const folderPath = path.join(__dirname,req.body.route);
     const fileName = req.body.name;
     const outputPath = path.join(__dirname,'output.zip');
     const output = fs.createWriteStream(outputPath);
@@ -167,13 +166,13 @@ router.post('/run/download', async (req, res) => {
 router.delete('/run/delete', async (req, res) => {
     var fileId = req.body.fileId;
     var input = req.body.inputRoute;
-    var output = req.body.ouputRoute;
-    if(!fileId || !route) return res.send('Failed To Detele Project');
+    var output = req.body.outputRoute;
+    if(!fileId || !input || output) return res.send('Failed To Detele Project');
     fileModel.deleteOne({uuid:fileId})
     .then(data=>{
         if(data.deletedCount){
             deleteFolder(input);
-            deleteFolder(output);
+            deleteFolder(path.join(__dirname,output));
             res.send('success');
         }
         else res.send('Failed To Detele Project');
