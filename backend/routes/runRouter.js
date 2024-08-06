@@ -44,11 +44,14 @@ router.post('/run/upload',upload.fields([
     var fPath = saveFiles(files,src,uuid);
 
     /* 寫入 config.yaml 開始*/
+    console.log('Create File')
     const sourceFilePath = path.join(__dirname, '/config/config.yaml');
     const targetDir = path.join(fPath, 'conf');
     if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
     const targetFilePath = path.join(fPath, 'conf', 'config.yaml');
-    fs.copyFile(sourceFilePath, targetFilePath, (err) => {});
+    fs.copyFile(sourceFilePath, targetFilePath, (err) => {
+        if(err) console.log(err);
+    });
     /* 寫入 config.yaml 結束 */
 
     var name = `${format(new Date(),'HHmm')}_project`;
@@ -74,8 +77,10 @@ router.post('/run/upload',upload.fields([
 });
 
 function saveFiles(files,src,uuid){
+    console.log('Save Files');
     const folderName = `${uuid}`;
     const folderPath = path.join(__dirname, '../../../workspace/modulus-sym/examples/aneurysm'); // 這之後要修改
+    console.log(folderPath)
     const stlFolderPath = path.join(folderPath,'stl_files');
     fs.mkdirSync(stlFolderPath, { recursive: true });
     try {
@@ -106,6 +111,7 @@ function deleteFolder(folderPath) { // 刪除資料夾
 
 // Step 3. 執行 python module
 function runModule(){
+    console.log('Run Module');
     isRunning = true;
     if(queue.length == 0){
         isRunning = false;
@@ -132,12 +138,15 @@ async function updateFileStatus(uuid,status){
 
 // Step 5. 取代檔案
 async function replaceFile(uuid,name,path) {
+    console.log('Replace File')
     fileModel.updateOne({uuid:uuid},{
         $set: {
             outputName: name+'.zip',
             outputRoute: path+'/outputs'
         },
-    }).then(res=>{})
+    }).then(res=>{
+        console.log('Replace Response: '+res)
+    })
 }
 
 // 下載檔案
