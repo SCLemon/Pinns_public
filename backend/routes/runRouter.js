@@ -14,7 +14,7 @@ const { v4: uuidv4 } = require('uuid');
 let queue = []; // 佇列
 let isRunning = false; // 檢查是否在運行計算
 
-// Step 1. 建構 python 程式碼
+// Step 1. 建構 python 程式碼 <-- 無需修改
 router.post('/run/code',(req, res) => {
     try{
         const tempFilePath = path.join(os.tmpdir(), 'temp.json');
@@ -55,12 +55,12 @@ router.post('/run/upload',upload.fields([
 
     /* 覆蓋 main.py 開始*/ // 之後要刪掉
     const aneurysmPath = path.join(__dirname, '/static/aneurysm.py');
-    const destinationFilePath = path.join(fPath, 'main.py');
+    const destinationFilePath = path.join(fPath, 'aneurysm.py');
     fs.readFile(aneurysmPath, 'utf8', (err, data) => {
         fs.writeFileSync(destinationFilePath, data, 'utf8');
     })
-
     /* 覆蓋 main.py 結束 */
+    
     var name = `${format(new Date(),'HHmm')}_project`;
     try {
         fileModel.create({
@@ -71,7 +71,7 @@ router.post('/run/upload',upload.fields([
             status:'Queuing',
             inputRoute:fPath,
             outputName: '',
-            outputRoute: ''
+            outputRoute:''
         })
         .then((data, err) => {
             queue.push({uuid:uuid,name:name,path:fPath});
@@ -94,13 +94,13 @@ function saveFiles(files,src,uuid){
             const filePath = path.join(stlFolderPath, file.originalname);
             fs.writeFileSync(filePath, file.buffer);
         });
-        fs.writeFileSync(path.join(folderPath, 'main.py'),src.buffer);
+        fs.writeFileSync(path.join(folderPath, 'aneurysm.py'),src.buffer);
     } 
     catch (err) {console.error(err);} 
     finally {return folderPath;}
 }
 
-function deleteFolder(folderPath) { // 刪除資料夾
+function deleteFolder(folderPath) { // 刪除資料夾 <-- 無需修改
     if (fs.existsSync(folderPath)) {
         const files = fs.readdirSync(folderPath);
         for (const file of files) {
@@ -117,6 +117,7 @@ function deleteFolder(folderPath) { // 刪除資料夾
 
 // Step 3. 執行 python module
 function runModule(){
+    const containerID = 'dd78a4670f76611ab23efb22850c3899a4cf8df319d2c4ef4fc8a90be005f317'
     isRunning = true;
     if(queue.length == 0){
         isRunning = false;
@@ -124,36 +125,27 @@ function runModule(){
     }
     var target = queue[0];
     updateFileStatus(target.uuid,'Running');
-    exec(`python ${target.path}/main.py`,(error,stdout,stderr)=>{
+    exec(`docker exec ${containerID} python modulus-sym/examples/aneurysm/aneurysm.py`,(error,stdout,stderr)=>{ // 路徑記得修改
         console.log('end');
+        console.log(error,stdout,stderr);
         updateFileStatus(target.uuid,'Ready');
         replaceFile(target.uuid,target.name,target.path)
         queue.pop();
         runModule();
     })
 }
-
-// Step 4. 修改狀態 Running or Ready
-async function updateFileStatus(uuid,status){
-    fileModel.updateOne(           
-        { uuid: uuid },
-        { $set: { status: status } }
-    ).then(res=>{})
-};
-
 // Step 5. 取代檔案
 async function replaceFile(uuid,name,path) {
     fileModel.updateOne({uuid:uuid},{
         $set: {
             outputName: name+'.zip',
-            outputRoute: path+'/outputs'
+            outputRoute: '../../../workspace/outputs/aneurysm'
         },
-    }).then(res=>{
-        console.log('Replace Response: '+res)
-    })
+    }).then(res=>{})
 }
 
-// 下載檔案
+
+// 下載檔案 <-- 無需修改
 router.post('/run/download', async (req, res) => {
     const folderPath = req.body.route;
     const fileName = req.body.name;
@@ -171,8 +163,30 @@ router.post('/run/download', async (req, res) => {
     archive.directory(folderPath, false);
     archive.finalize();
 });
-
-// 查看檔案
+// 刪除檔案 <-- 無需修改
+router.delete('/run/delete', async (req, res) => {
+    var fileId = req.body.fileId;
+    var input = req.body.inputRoute;
+    var output = req.body.ouputRoute;
+    if(!fileId || !route) return res.send('Failed To Detele Project');
+    fileModel.deleteOne({uuid:fileId})
+    .then(data=>{
+        if(data.deletedCount){
+            deleteFolder(input);
+            deleteFolder(output);
+            res.send('success');
+        }
+        else res.send('Failed To Detele Project');
+    })
+});
+// 修改狀態 Running or Ready <-- 無需修改
+async function updateFileStatus(uuid,status){
+    fileModel.updateOne(           
+        { uuid: uuid },
+        { $set: { status: status } }
+    ).then(res=>{})
+};
+// 查看檔案 <-- 無需修改
 router.get('/run/findAll', async (req, res) => {
     var token = req.headers['user-token'];
     try {
@@ -195,20 +209,4 @@ router.get('/run/findAll', async (req, res) => {
         res.status(200).send({ message: '伺服器錯誤' });
     }
 });
-
-// 刪除檔案
-router.delete('/run/delete', async (req, res) => {
-    var fileId = req.body.fileId;
-    var route = req.body.route;
-    if(!fileId || !route) return res.send('Failed To Detele Project');
-    fileModel.deleteOne({uuid:fileId})
-    .then(data=>{
-        if(data.deletedCount){
-            deleteFolder(route);
-            res.send('success');
-        }
-        else res.send('Failed To Detele Project');
-    })
-});
-
 module.exports = router;
