@@ -8,11 +8,12 @@ const { exec } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-
 const { v4: uuidv4 } = require('uuid');
 
 // docker container
 const containerID = 'Container ID'
+
+runModule(); // 初始化
 
 // Step 1. 建構 python 程式碼 <-- 無需修改
 router.post('/run/code',(req, res) => {
@@ -42,8 +43,6 @@ router.post('/run/upload',upload.fields([
     var src = req.files['code'][0];
     var token = req.headers['user-token'];
     var fPath = saveFiles(files,src,uuid);
-    console.log(fPath)
-    console.log(path.join(__dirname,fPath))
     /* 寫入 config.yaml 開始*/
     const sourceFilePath = path.join(__dirname, '/static/config.yaml');
     const targetDir = path.join(__dirname, fPath, 'conf');
@@ -54,7 +53,7 @@ router.post('/run/upload',upload.fields([
 
     /* 覆蓋 main.py 開始 */ // 之後要刪掉
     const aneurysmPath = path.join(__dirname, '/static/aneurysm.py');
-    const destinationFilePath = path.join(__dirname, fPath, 'main.py');
+    const destinationFilePath = path.join(__dirname, fPath, `${uuid}.py`);
     fs.readFile(aneurysmPath, 'utf8', (err, data) => {
         fs.writeFileSync(destinationFilePath, data, 'utf8');
     })
@@ -93,7 +92,7 @@ function saveFiles(files,src,uuid){
             const filePath = path.join(stlFolderPath, file.originalname);
             fs.writeFileSync(filePath, file.buffer);
         });
-        fs.writeFileSync(path.join(__dirname,folderPath, 'main.py'),src.buffer);
+        fs.writeFileSync(path.join(__dirname,folderPath, `${uuid}.py`),src.buffer);
     } 
     catch (err) {console.error(err);} 
     finally {return folderPath;}
@@ -113,14 +112,10 @@ async function runModule(){
     currentProcess = res.uuid;
     var target = res;
     await updateFileStatus(target.uuid,'Running');
-    setTimeout(async() => {
-        await updateFileStatus(target.uuid,'Ready');
-        runModule();
-    }, 5000);
-    exec(`docker exec ${containerID} python modulus-sym/examples/${res.uuid}/main.py`,async (error,stdout,stderr)=>{ // 路徑記得修改
+    exec(`docker exec ${containerID} python modulus-sym/examples/${res.uuid}/${res.uuid}.py`,async (error,stdout,stderr)=>{
         console.log(error,stdout,stderr);
         await updateFileStatus(target.uuid,'Ready');
-        await replaceFile(target.uuid,target.name,target.path)
+        await replaceFile(target.uuid,target.name)
         await runModule();
     })
 }
@@ -134,11 +129,11 @@ async function updateFileStatus(uuid,status){
 };
 
 // Step 5. 取代檔案
-async function replaceFile(uuid,name,path) {
+async function replaceFile(uuid,name) {
     await fileModel.updateOne({uuid:uuid},{
         $set: {
             outputName: name+'.zip',
-            outputRoute: '../../../workspace/outputs/aneurysm'
+            outputRoute: `../../../workspace/outputs/${uuid}`
         },
     }).then(res=>{})
 }
