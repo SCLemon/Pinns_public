@@ -34,11 +34,29 @@ def run(cfg: ModulusConfig) -> None:
 
     domain = Domain()
 
-    inlet_mesh = Tessellation.from_stl('aneurysm_inlet.stl', airtight=True)
-    outlet_mesh = Tessellation.from_stl('aneurysm_outlet.stl', airtight=True)
-    noslip_mesh = Tessellation.from_stl('aneurysm_noslip.stl', airtight=True)
-    interior_mesh = Tessellation.from_stl('aneurysm_closed.stl', airtight=True)
-    integral_mesh = Tessellation.from_stl('aneurysm_integral.stl', airtight=True)
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    original_path = os.path.join(base_dir, 'stl_files')
+    original_path_arr = original_path.split('/')
+    start_index = 2
+    end_index = 4
+    original_path_arr = original_path_arr[:start_index] + original_path_arr[end_index:]
+    point_path = '/'.join(original_path_arr)
+
+    inlet_mesh = Tessellation.from_stl(
+        point_path + "/aneurysm_inlet.stl", airtight=False
+    )
+    outlet_mesh = Tessellation.from_stl(
+        point_path + "/aneurysm_outlet.stl", airtight=False
+    )
+    noslip_mesh = Tessellation.from_stl(
+        point_path + "/aneurysm_noslip.stl", airtight=False
+    )
+    integral_mesh = Tessellation.from_stl(
+        point_path + "/aneurysm_integral.stl", airtight=False
+    )
+    interior_mesh = Tessellation.from_stl(
+        point_path + "/aneurysm_closed.stl", airtight=True
+    )
     
     center = [-18.40381048596882, -50.285383353981196, 12.848136936899031]
     scale = 0.4
