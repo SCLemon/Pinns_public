@@ -1,3 +1,4 @@
+import os
 import modulus.sym
 from modulus.sym.hydra import to_absolute_path
 from modulus.sym.hydra import instantiate_arch
@@ -30,7 +31,14 @@ def run(cfg: ModulusConfig) -> None:
         return mesh
 
     domain = Domain()
-
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    original_path = os.path.join(base_dir, 'stl_files')
+    original_path_arr = original_path.split('/')
+    start_index = 2
+    end_index = 4
+    original_path_arr = original_path_arr[:start_index] + original_path_arr[end_index:]
+    point_path = '/'.join(original_path_arr)
+    
     <<MESH_BLOCK>>
     <<OTHER_BLOCKS>>
 

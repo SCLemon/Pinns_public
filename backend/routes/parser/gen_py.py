@@ -13,9 +13,6 @@ def gen_codes_meshes(param):
     '''
     lines = []
 
-    line = 'point_path = to_absolute_path(\'./stl_files\')'
-    lines.append(line)
-
     for meta in param['meshes']:
         if meta['type'] == 'mesh':
             line = '{0} = Tessellation.from_stl(point_path + \'/{1}\', airtight={2})'.format(meta['name'], meta['filename'], meta['airtight'])
