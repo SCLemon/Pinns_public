@@ -32,7 +32,7 @@ router.post('/run/code',(req, res) => {
 });
 router.post('/run/yaml',(req, res) => {
     try{
-        const tempFilePath = path.join(os.tmpdir(), 'temp.json');
+        const tempFilePath = path.join(os.tmpdir(), 'temp2.json');
         const pyFilePath = path.join(__dirname, 'parser/gen_yaml.py');
         const jsonObject = req.body.json;
         fs.writeFileSync(tempFilePath, jsonObject, 'utf8');
