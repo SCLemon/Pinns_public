@@ -59,16 +59,21 @@ def gen_codes_architecture(meta):
     line = '{0} = {1}({2})'.format(meta['name'], meta['function'], ', '.join(tmp))
     return line
 
-def gen_codes_nodes(meta):
+def gen_codes_nodes(meta):  # 修改
     '''
     nodes = (ns.make_nodes() + normal_dot_vel.make_nodes() + [flow_net.make_node(name='flow_network')])
     '''
+    equations = eval(meta['equations'])
+    architectures = eval(meta['architectures'])
+    
     tmp1 = []
-    for ix in meta['equations']:
+    for ix in equations:
         tmp1.append('{0}.make_nodes()'.format(ix))
+        
     tmp2 = []
-    for ix in meta['architectures']:
+    for ix in architectures:
         tmp2.append('{0}.make_node(name=\'{0}\')'.format(ix))
+        
     line = '{0} = ({1} + [{2}])'.format(meta['name'], ' + '.join(tmp1), ', '.join(tmp2))
     return line
 
@@ -199,7 +204,7 @@ def gen_py_file(param_json, templ_py):
     return '\n'.join(codes)
 
 if __name__ == '__main__':
-
+    # 修改
     parameters = sys.argv[1]
     script_dir = os.path.dirname(os.path.abspath(__file__))
     template = os.path.join(script_dir, 'templ_py.py')

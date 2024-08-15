@@ -19,7 +19,6 @@ runModule(); // 初始化
 router.post('/run/code',(req, res) => {
     try{
         const tempFilePath = path.join(os.tmpdir(), 'temp.json');
-        //const pyFilePath = path.join(__dirname, 'parser/json_parser.py');
         const pyFilePath = path.join(__dirname, 'parser/gen_py.py');
         const jsonObject = req.body.json;
         fs.writeFileSync(tempFilePath, jsonObject, 'utf8');
@@ -37,7 +36,6 @@ router.post('/run/yaml',(req, res) => {
         const jsonObject = req.body.json;
         fs.writeFileSync(tempFilePath, jsonObject, 'utf8');
         exec(`python3 ${pyFilePath} ${tempFilePath}`, (error, stdout, stderr) => {
-            console.log(error,stderr,stdout)
             // 刪除臨時文件
             try{fs.unlinkSync(tempFilePath);}
             catch(e){}
