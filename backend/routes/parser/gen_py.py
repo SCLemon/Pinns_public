@@ -3,19 +3,22 @@ import json
 import sys # 新增
 import os # 新增
 
-
 def gen_codes_meshes(param):
     '''
-    inlet_mesh = Tessellation.from_stl('aneurysm_inlet.stl', airtight=False)
+
+    inlet_mesh = Tessellation.from_stl(to_absolute_path('./stl_files') + '/aneurysm_inlet.stl', airtight=False)
     center = [-19.649354934692383, -50.0917854309082, 12.419385373592377]
     scale = 1
     inlet_mesh = normalize_mesh(inlet_mesh, center, scale)
     '''
     lines = []
 
+    line = 'point_path = to_absolute_path(\'./stl_files\')'
+    lines.append(line)
+
     for meta in param['meshes']:
         if meta['type'] == 'mesh':
-            line = '{0} = Tessellation.from_stl(\'{1}\', airtight={2})'.format(meta['name'], meta['filename'], meta['airtight'])
+            line = '{0} = Tessellation.from_stl(point_path + \'/{1}\', airtight={2})'.format(meta['name'], meta['filename'], meta['airtight'])
             lines.append(line)
 
     if param['normalize']['do'] == 1:
@@ -106,18 +109,15 @@ def gen_codes_validator(meta):
     lines = []
     return lines
 
+def gen_codes_inferencer(meta):
+    lines = []
+    return lines
+
 def gen_codes_manual(meta):
     lines = meta['codes']
     return lines
 
-
-if __name__ == '__main__':
-
-    param_json = sys.argv[1]
-
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    tmpl_py = os.path.join(script_dir, 'pinn_template.py')
-
+def gen_py_file(param_json, templ_py):
     # Load json
     param = None
     with open(param_json, 'r') as f:
@@ -157,19 +157,24 @@ if __name__ == '__main__':
             line = gen_codes_constraint(block)
             other_blocks.extend(line)
 
-        # Monitor block
-        if block['type'] == 'monitor':
-            line = gen_codes_constraint(block)
-            other_blocks.extend(line)
-
         # Validator block
         if block['type'] == 'validator':
-            line = gen_codes_constraint(block)
+            line = gen_codes_validator(block)
             other_blocks.extend(line)
 
-    # Load template
+        # Monitor block
+        if block['type'] == 'monitor':
+            line = gen_codes_monitor(block)
+            other_blocks.extend(line)
+
+        # Inferencer block
+        if block['type'] == 'inferencer':
+            line = gen_codes_inferencer(block)
+            other_blocks.extend(line)
+
+    # Load py template
     tmpl = None
-    with open(tmpl_py, 'r') as f:
+    with open(templ_py, 'r') as f:
         tmpl = [x.rstrip() for x in f.readlines()]
 
     # Find insert places
@@ -194,5 +199,14 @@ if __name__ == '__main__':
     for i in range(other_blocks_i+1, len(tmpl)):
         codes.append(tmpl[i])
 
-    # Show result
-    print('\n'.join(codes))
+    return '\n'.join(codes)
+
+if __name__ == '__main__':
+
+    parameters = sys.argv[1]
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    template = os.path.join(script_dir, 'templ_py.py')
+
+    py = gen_py_file(parameters, template)
+
+    print(py)
