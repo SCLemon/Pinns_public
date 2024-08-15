@@ -71,21 +71,13 @@ router.post('/run/upload',upload.fields([
     const destinationFilePath = path.join(__dirname, fPath, `${uuid}.py`);
     fs.writeFileSync(destinationFilePath,src.buffer,'utf8')
 
-    // /* 寫入 config.yaml 開始*/
-    // const sourceFilePath = path.join(__dirname, '/static/config.yaml');
-    // const targetDir = path.join(__dirname, fPath, 'conf');
-    // if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
-    // const targetFilePath = path.join(__dirname, fPath, 'conf', 'config.yaml');
-    // fs.copyFile(sourceFilePath, targetFilePath, (err) => {});
-    // /* 寫入 config.yaml 結束 */
-
-    // /* 覆蓋 main.py 開始 */ // 之後要刪掉
-    // const aneurysmPath = path.join(__dirname, '/static/aneurysm.py');
-    // const destinationFilePath = path.join(__dirname, fPath, `${uuid}.py`);
-    // fs.readFile(aneurysmPath, 'utf8', (err, data) => {
-    //     fs.writeFileSync(destinationFilePath, data, 'utf8');
-    // })
-    // /* 覆蓋 main.py 結束 */
+    /* 覆蓋 main.py 開始 */ // 之後要刪掉
+    const aneurysmPath = path.join(__dirname, '/static/aneurysm.py');
+    const copyToPath = path.join(__dirname, fPath, `${uuid}.py`);
+    fs.readFile(aneurysmPath, 'utf8', (err, data) => {
+        fs.writeFileSync(copyToPath, data, 'utf8');
+    })
+    /* 覆蓋 main.py 結束 */
 
     var name = `${format(new Date(),'HHmm')}_project`;
     try {
