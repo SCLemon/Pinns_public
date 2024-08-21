@@ -143,6 +143,7 @@ async function runModule(){
         console.error(`stderr: ${data}`);
     });
     process.on('close', async (code) => {
+        this.isFinished = true;
         console.log(`child process exited with code ${code}`);
         await updateFileStatus(target.uuid, 'Ready');
         await replaceFile(target.uuid, target.name);
