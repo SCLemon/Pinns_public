@@ -128,10 +128,7 @@ async function runModule(){
         return;
     }
     currentProcess = res.uuid;
-
     var target = res;
-    var isFinished = false; // 判斷是否完成
-
     await updateFileStatus(target.uuid,'Running');
     const command = 'docker';
     const args = ['exec', containerID, 'python', `modulus-sym/examples/${res.uuid}/${res.uuid}.py`];
@@ -143,22 +140,15 @@ async function runModule(){
         console.error(`stderr: ${data}`);
     });
     process.on('close', async (code) => {
-        this.isFinished = true;
         console.log(`child process exited with code ${code}`);
         await updateFileStatus(target.uuid, 'Ready');
         await replaceFile(target.uuid, target.name);
         await runModule();
     });
-    setTimeout(() => {
-        if(!isFinished){
-            process.kill('SIGTERM');
-            updateFileStatus(target.uuid,'Error');
-        }
-    }, 10*60*1000); // 十分鐘未跑完則直接中斷
 }
-// 修改狀態 Running or Ready or Error <-- 無需修改
+// 修改狀態 Running or Ready <-- 無需修改
 async function updateFileStatus(uuid,status){
-    var done = (status == 'Ready' || status == 'Error');
+    var done = status == 'Ready';
     await fileModel.updateOne(           
         { uuid: uuid },
         { $set: { status: status , done: done } }
