@@ -70,11 +70,11 @@ router.post('/run/upload',upload.fields([
     fs.writeFileSync(destinationFilePath,src.buffer,'utf8')
 
     /* 覆蓋 main.py 開始 */ // 之後要刪掉
-    const aneurysmPath = path.join(__dirname, '/static/aneurysm.py');
-    const copyToPath = path.join(__dirname, fPath, `${uuid}.py`);
-    fs.readFile(aneurysmPath, 'utf8', (err, data) => {
-        fs.writeFileSync(copyToPath, data, 'utf8');
-    })
+    // const aneurysmPath = path.join(__dirname, '/static/aneurysm.py');
+    // const copyToPath = path.join(__dirname, fPath, `${uuid}.py`);
+    // fs.readFile(aneurysmPath, 'utf8', (err, data) => {
+    //     fs.writeFileSync(copyToPath, data, 'utf8');
+    // })
     /* 覆蓋 main.py 結束 */
 
     var name = `${format(new Date(),'HHmm')}_project`;
@@ -205,15 +205,20 @@ router.delete('/run/delete', async (req, res) => {
     var fileId = req.body.fileId;
     var input = req.body.inputRoute;
     var output = req.body.outputRoute;
-    if(!fileId || !input || !output) return res.send('Failed To Detele Project');
     fileModel.deleteOne({uuid:fileId})
     .then(data=>{
         if(data.deletedCount){
-            deleteFolder(input);
-            deleteFolder(output);
-            res.send('success');
+            if(input!='') deleteFolder(input);
+            if(output!='') deleteFolder(output);
+            res.send({
+                type:'success',
+                message:'刪除成功！'
+            })
         }
-        else res.send('Failed To Detele Project');
+        else res.send({
+            type:'error',
+            message:'刪除失敗！'
+        });
     })
 });
 
