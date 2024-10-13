@@ -117,6 +117,7 @@ function saveFiles(files,src,uuid){
 }
 // Step 3. 執行 python module
 var currentProcess = 0;
+var process = {}; // 執行緒
 async function runModule(){
     const res = await fileModel.findOne({done:false})
     if(res == null){
@@ -132,7 +133,7 @@ async function runModule(){
     await updateFileStatus(target.uuid,'Running');
     const command = 'docker';
     const args = ['exec', containerID, 'python', `modulus-sym/examples/${res.uuid}/${res.uuid}.py`];
-    const process = spawn(command, args);
+    process = spawn(command, args);
     process.stdout.on('data', (data) => {
         console.log(`stdout: ${data}`);
     });
@@ -239,4 +240,22 @@ router.get('/run/findAll', async (req, res) => {
         res.status(200).send({ message: '伺服器錯誤' });
     }
 });
+
+router.get('/run/kill/:uuid',(req,res)=>{
+    var uuid = req.params.uuid;
+
+    if(currentProcess == uuid){
+        process.kill();
+        res.send({
+            type:'success',
+            message:'執行緒已中止！'
+        });
+    }
+    else{
+        res.send({
+            type:'error',
+            message:'執行緒中止失敗！'
+        });
+    }
+})
 module.exports = router;
