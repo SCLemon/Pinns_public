@@ -249,15 +249,16 @@ router.get('/run/findAll', async (req, res) => {
     }
 });
 
-// 停止運行 <-- 問題待解決
+// 停止運行
 router.get('/run/kill/:uuid',(req,res)=>{
     var uuid = req.params.uuid;
-    
     if(currentProcess == uuid){
         child.kill('SIGTERM');
-        res.send({
-            type:'success',
-            message:'執行緒已中止！'
+        exec(`docker exec ${containerID} kill -9 ${child.pid}`, (error, stdout, stderr) => {
+            res.send({
+                type:'success',
+                message:'執行緒已中止！'
+            });
         });
     }
     else{
