@@ -254,10 +254,14 @@ router.get('/run/kill/:uuid',(req,res)=>{
     var uuid = req.params.uuid;
     if(currentProcess == uuid){
         child.kill('SIGTERM');
-        exec(`docker exec ${containerID} kill -9 ${child.pid}`, (error, stdout, stderr) => {
-            res.send({
-                type:'success',
-                message:'執行緒已中止！'
+        exec(`docker top ${containerID} | grep "${uuid}.py" | awk '{print $2}'`, (error, stdout, stderr) => {
+            const pid = stdout.trim();
+            // 進一步終止進程
+            exec(`kill -9 ${pid}`, (killError) => {
+                res.send({
+                    type:'success',
+                    message:'執行緒已中止！'
+                });
             });
         });
     }
