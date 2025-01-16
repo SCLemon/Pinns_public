@@ -355,4 +355,15 @@ function sendMail(target){
     .catch(()=>{})
 }
 
+// 下載 log
+router.get('/run/log/download/:uuid',(req,res)=>{
+    var target = path.join(__dirname, relativeLogPath,`${req.params.uuid}.log`);
+    if (fs.existsSync(target)) {
+        res.download(target, (err) => {
+            if (err) res.send({status:'error',message:'Failed To Download Log File'});
+        });
+    } 
+    else res.send({status:'error',message:'Failed To Download Log File'});
+})
+
 module.exports = router;
