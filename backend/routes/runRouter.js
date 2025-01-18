@@ -181,19 +181,33 @@ async function runModule(){
     child.stdout.on('data', (data) => {
         const output = `${data.toString()}\n`;
         console.log(output);
-        try{fs.appendFileSync(logFilePath, output, 'utf8');}catch(e){}
+        try{
+            fs.appendFileSync(logFilePath, output, 'utf8');
+        }
+        catch(e){
+            console.log(logFilePath,output,e)
+        }
     });
     child.stderr.on('data', (data) => {
         const output = `${data.toString()}\n`;
         console.log(output);
-        try{fs.appendFileSync(logFilePath, output, 'utf8');}catch(e){}
+        try{
+            fs.appendFileSync(logFilePath, output, 'utf8');
+        }
+        catch(e){
+            console.log(logFilePath,output,e)
+        }
     });
     child.on('close', async (code) => {
         const output = `child process exited with code ${code}\n`;
         console.log(output);
-        
-        try{fs.appendFileSync(logFilePath, output, 'utf8');}catch(e){}
 
+        try{
+            fs.appendFileSync(logFilePath, output, 'utf8');
+        }
+        catch(e){
+            console.log(logFilePath,output,e)
+        }
         await updateFileStatus(target.uuid, 'Ready');
         await replaceFile(target.uuid, target.name);
         await runModule();
@@ -360,10 +374,14 @@ router.get('/run/log/download/:uuid',(req,res)=>{
     var target = path.join(__dirname, relativeLogPath,`${req.params.uuid}.log`);
     if (fs.existsSync(target)) {
         res.download(target, (err) => {
+            console.error(`文件下載錯誤: ${err.message}`);
             if (err) res.send({status:'error',message:'Failed To Download Log File'});
         });
     } 
-    else res.send({status:'error',message:'Failed To Download Log File'});
+    else {
+        console.warn(`文件未找到: ${target}`);
+        res.send({ status: 'error', message: 'Log File Not Found' });
+    }
 })
 
 module.exports = router;
