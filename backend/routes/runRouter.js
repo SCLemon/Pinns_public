@@ -49,18 +49,26 @@ router.post('/run/yaml',(req, res) => {
 const upload = multer();
 router.post('/run/upload/:name',upload.fields([
     { name: 'stlFiles', maxCount: 50 },
+    { name: 'attachments', maxCount: 50 },
     { name: 'code', maxCount: 1 },
     { name: 'yaml', maxCount: 1 }
 ])
 ,(req, res) => {
+
     var files = req.files['stlFiles'];
+    var attachments = req.files['attachments'];
+
     if(!files) return res.status(200).send('STL 資料不可為空');
+    
     const uuid = uuidv4();
     var src = req.files['code'][0];
     var yaml = req.files['yaml'][0];
     var token = req.headers['user-token'];
-    var fPath = saveFiles(files,src,uuid);
-    
+
+    // 開始儲存文件
+    var fPath = saveFiles(files,uuid);
+    saveAttachments(attachments,uuid);
+
     // 寫入 yaml
     const targetDir = path.join(__dirname, fPath, 'conf');
     if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
@@ -93,7 +101,8 @@ router.post('/run/upload/:name',upload.fields([
     }
 });
 
-function saveFiles(files,src,uuid){
+// 儲存 STL 文件
+function saveFiles(files,uuid){
     const folderName = `${uuid}`;
     const folderPath = path.join('../../../workspace/modulus-sym/examples',folderName);
 
@@ -104,11 +113,28 @@ function saveFiles(files,src,uuid){
             const filePath = path.join(stlFolderPath, file.originalname);
             fs.writeFileSync(filePath, file.buffer);
         });
-        fs.writeFileSync(path.join(__dirname,folderPath, `${uuid}.py`),src.buffer);
     } 
     catch (err) {console.error(err);} 
     finally {return folderPath;}
 }
+
+// 儲存其他文件
+function saveAttachments(files,uuid){
+    const folderName = `${uuid}`;
+    const folderPath = path.join('../../../workspace/modulus-sym/examples',folderName);
+
+    const stlFolderPath = path.join(__dirname,folderPath,'user_data');
+    fs.mkdirSync(stlFolderPath, { recursive: true });
+    try {
+        files.forEach(file => {
+            const filePath = path.join(stlFolderPath, file.originalname);
+            fs.writeFileSync(filePath, file.buffer);
+        });
+    } 
+    catch (err) {console.error(err);} 
+    finally {return folderPath;}
+}
+
 // Step 3. 執行 python module
 var currentProcess = 0;
 var child = undefined; // 當前運行執行緒
@@ -181,33 +207,19 @@ async function runModule(){
     child.stdout.on('data', (data) => {
         const output = `${data.toString()}\n`;
         console.log(output);
-        try{
-            fs.appendFileSync(logFilePath, output, 'utf8');
-        }
-        catch(e){
-            console.log(logFilePath,output,e)
-        }
+        try{fs.appendFileSync(logFilePath, output, 'utf8');}catch(e){}
     });
     child.stderr.on('data', (data) => {
         const output = `${data.toString()}\n`;
         console.log(output);
-        try{
-            fs.appendFileSync(logFilePath, output, 'utf8');
-        }
-        catch(e){
-            console.log(logFilePath,output,e)
-        }
+        try{fs.appendFileSync(logFilePath, output, 'utf8');}catch(e){}
     });
     child.on('close', async (code) => {
         const output = `child process exited with code ${code}\n`;
         console.log(output);
+        
+        try{fs.appendFileSync(logFilePath, output, 'utf8');}catch(e){}
 
-        try{
-            fs.appendFileSync(logFilePath, output, 'utf8');
-        }
-        catch(e){
-            console.log(logFilePath,output,e)
-        }
         await updateFileStatus(target.uuid, 'Ready');
         await replaceFile(target.uuid, target.name);
         await runModule();
@@ -252,6 +264,7 @@ function deleteFolder(folderPath) {
         fs.rmdirSync(target);
     } 
 }
+
 // 下載檔案 <-- 無需修改
 router.post('/run/download', async (req, res) => {
     const folderPath = path.join(__dirname,req.body.route);
@@ -270,6 +283,7 @@ router.post('/run/download', async (req, res) => {
     archive.directory(folderPath, false);
     archive.finalize();
 });
+
 // 刪除檔案 <-- 無需修改
 router.delete('/run/delete', async (req, res) => {
     var fileId = req.body.fileId;
@@ -374,14 +388,10 @@ router.get('/run/log/download/:uuid',(req,res)=>{
     var target = path.join(__dirname, relativeLogPath,`${req.params.uuid}.log`);
     if (fs.existsSync(target)) {
         res.download(target, (err) => {
-            console.error(`文件下載錯誤: ${err.message}`);
             if (err) res.send({status:'error',message:'Failed To Download Log File'});
         });
     } 
-    else {
-        console.warn(`文件未找到: ${target}`);
-        res.send({ status: 'error', message: 'Log File Not Found' });
-    }
+    else res.send({status:'error',message:'Failed To Download Log File'});
 })
 
 module.exports = router;
