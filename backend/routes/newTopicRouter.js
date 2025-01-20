@@ -231,6 +231,16 @@ router.delete('/run/newTopic/deleteAllFiles/:uuid',(req,res)=>{
     });
     fs.rmdirSync(targetDir);
   }
+
+  const targetDir2 = path.join(__dirname, attachmentPath ,token, uuid);
+  if (fs.existsSync(targetDir2)) {
+    const files = fs.readdirSync(targetDir2);
+    files.forEach(file => {
+      const filePath = path.join(targetDir2, file);
+      fs.unlinkSync(filePath);
+    });
+    fs.rmdirSync(targetDir2);
+  }
   res.send('success')
 })
 
